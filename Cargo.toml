@@ -1,0 +1,2 @@
+[workspace]
+members = ["vanta", "vanta-common", "xtask"]
