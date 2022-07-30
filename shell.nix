@@ -7,8 +7,11 @@ pkgs.mkShell {
     llvmPackages_latest.libclang
     glibc
     libelf
+    bpftool
+    rust-bindgen
   ];
   shellHook = ''
+    export LIBCLANG_PATH=$(realpath $(dirname $(which clang))/../lib)
   '';
 }
 
