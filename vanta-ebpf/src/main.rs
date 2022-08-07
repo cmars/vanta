@@ -30,7 +30,7 @@ pub fn vanta(ctx: SkBuffContext) -> i32 {
     }
 }
 
-unsafe fn try_vanta(ctx: SkBuffContext) -> Result<(), i64> {
+unsafe fn try_vanta(mut ctx: SkBuffContext) -> Result<(), i64> {
     let eth_proto = u16::from_be(ctx.load(offset_of!(ethhdr, h_proto))?);
     let ip_proto = ctx.load::<u8>(ETH_HDR_LEN + offset_of!(iphdr, protocol))?;
     let saddr = u32::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?);
@@ -39,9 +39,21 @@ unsafe fn try_vanta(ctx: SkBuffContext) -> Result<(), i64> {
         u16::from_be(ctx.load::<u16>(ETH_HDR_LEN + IP_HDR_LEN + offset_of!(tcphdr, source))?);
     let dest_port =
         u16::from_be(ctx.load::<u16>(ETH_HDR_LEN + IP_HDR_LEN + offset_of!(tcphdr, dest))?);
+
+    if dest_port == 51820 {
+        info!(&ctx, "not messing with WG");
+        return Ok(());
+    } else if dest_port == 0 {
+        info!(&ctx, "not messing with non-socket packet");
+        return Ok(())
+    }
+
+    let ifindex = &(*ctx.skb).ifindex;
+
     info!(
         &ctx,
-        "received a packet, eth(proto={}) ip(proto={} saddr={} daddr={}) tcp(source={}, dest={})",
+        "received a packet on ifindex={}, eth(proto={}) ip(proto={} saddr={} daddr={}) tcp(source={}, dest={})",
+        ifindex,
         eth_proto,
         ip_proto,
         saddr,
@@ -49,9 +61,13 @@ unsafe fn try_vanta(ctx: SkBuffContext) -> Result<(), i64> {
         source_port,
         dest_port
     );
-    //let offset = ETH_HDR_LEN + IP_HDR_LEN + TCP_HDR_LEN;
+
+    //let localhost_macaddr: [::aya_bpf::cty::c_uchar; 6usize] = [0; 6usize];
+    //ctx.store(0, &localhost_macaddr, 1);
+    //ctx.clone_redirect(4u32, 0u64)?;
 
     Ok(())
+    //Err(0)
 }
 
 #[panic_handler]
