@@ -4,7 +4,7 @@
 use core::mem;
 
 mod bindings;
-use bindings::{ethhdr, iphdr, tcphdr};
+use bindings::{ethhdr, iphdr, tcphdr, udphdr};
 
 use aya_bpf::bindings::{TC_ACT_PIPE, TC_ACT_SHOT};
 use aya_bpf::maps::PerCpuArray;

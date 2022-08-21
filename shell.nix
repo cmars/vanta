@@ -6,6 +6,7 @@ pkgs.mkShell {
     llvmPackages_latest.llvm
     llvmPackages_latest.libclang
     glibc
+    elfutils
     rust-bindgen
     nixos-shell
   ];
