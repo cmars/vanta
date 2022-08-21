@@ -9,7 +9,7 @@ use bindings::{ethhdr, iphdr, tcphdr};
 use aya_bpf::bindings::{TC_ACT_PIPE, TC_ACT_SHOT};
 use aya_bpf::maps::PerCpuArray;
 use aya_bpf::{macros::classifier, programs::SkBuffContext};
-use aya_log_ebpf::info;
+use aya_log_ebpf::trace;
 
 #[macro_use]
 extern crate memoffset;
@@ -31,6 +31,7 @@ pub fn vanta(ctx: SkBuffContext) -> i32 {
 }
 
 unsafe fn try_vanta(mut ctx: SkBuffContext) -> Result<(), i64> {
+    // Decode network packet headers
     let eth_proto = u16::from_be(ctx.load(offset_of!(ethhdr, h_proto))?);
     let ip_proto = ctx.load::<u8>(ETH_HDR_LEN + offset_of!(iphdr, protocol))?;
     let saddr = u32::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?);
@@ -40,17 +41,17 @@ unsafe fn try_vanta(mut ctx: SkBuffContext) -> Result<(), i64> {
     let dest_port =
         u16::from_be(ctx.load::<u16>(ETH_HDR_LEN + IP_HDR_LEN + offset_of!(tcphdr, dest))?);
 
-    if dest_port == 51820 {
-        info!(&ctx, "not messing with WG");
+    if source_port == 0 || dest_port == 0 {
+        trace!(&ctx, "not messing with non-socket packet");
         return Ok(());
-    } else if dest_port == 0 {
-        info!(&ctx, "not messing with non-socket packet");
-        return Ok(())
+    }
+    if is_allowed(ip_proto, source_port, dest_port) {
+        trace!(&ctx, "not messing with VPN traffic");
+        return Ok(());
     }
 
     let ifindex = &(*ctx.skb).ifindex;
-
-    info!(
+    trace!(
         &ctx,
         "received a packet on ifindex={}, eth(proto={}) ip(proto={} saddr={} daddr={}) tcp(source={}, dest={})",
         ifindex,
@@ -62,12 +63,26 @@ unsafe fn try_vanta(mut ctx: SkBuffContext) -> Result<(), i64> {
         dest_port
     );
 
-    //let localhost_macaddr: [::aya_bpf::cty::c_uchar; 6usize] = [0; 6usize];
-    //ctx.store(0, &localhost_macaddr, 1);
-    //ctx.clone_redirect(4u32, 0u64)?;
+    // Drop other packets
+    Err(0)
+}
 
-    Ok(())
-    //Err(0)
+fn is_allowed(ip_proto: u8, source_port: u16, dest_port: u16) -> bool {
+    // TODO: Improve this w/DPI beyond a simple naive port number match
+    if source_port == 0 || dest_port == 0 {
+        return true;
+    }
+    if ip_proto != IPPROTO_UDP {
+        return false;
+    }
+    return is_vpn_port(source_port) || is_vpn_port(dest_port);
+}
+
+fn is_vpn_port(port: u16) -> bool {
+    match port {
+        1194u16 | 4569u16 | 5060u16 | 51280u16 => true,
+        _ => false,
+    }
 }
 
 #[panic_handler]

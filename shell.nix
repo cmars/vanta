@@ -6,9 +6,8 @@ pkgs.mkShell {
     llvmPackages_latest.llvm
     llvmPackages_latest.libclang
     glibc
-    libelf
-    bpftool
     rust-bindgen
+    nixos-shell
   ];
   shellHook = ''
     export LIBCLANG_PATH=$(realpath $(dirname $(which clang))/../lib)
